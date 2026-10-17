@@ -414,6 +414,9 @@ def export(pid: str):
     msgs = pipeline.readiness(p)
     if msgs:
         raise HTTPException(422, {"message": "Not ready to export", "blocking": msgs})
+    if get_settings().temporal_address:      # optional durable mode: retries and resumes (see backend/app/durable.py)
+        from . import durable
+        return {"job_id": jobs.runner.submit(pid, "export", lambda ctx: durable.run_export_durable(pid, ctx))}
     return {"job_id": jobs.runner.submit(pid, "export", lambda ctx: pipeline.run_export(pid, ctx))}
 
 

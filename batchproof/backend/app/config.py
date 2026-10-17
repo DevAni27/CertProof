@@ -39,6 +39,8 @@ class Settings:
     host: str
     port: int
     chromium_path: str | None
+    temporal_address: str | None
+    temporal_task_queue: str
 
 
 def get_settings() -> Settings:
@@ -57,4 +59,6 @@ def get_settings() -> Settings:
         host=e("BATCHPROOF_HOST", "127.0.0.1"),
         port=int(e("BATCHPROOF_PORT", "8000")),
         chromium_path=e("BATCHPROOF_CHROMIUM_PATH") or None,
+        temporal_address=e("CERTPROOF_TEMPORAL_ADDRESS") or None,   # set it to turn on durable exports
+        temporal_task_queue=e("CERTPROOF_TEMPORAL_QUEUE", "certproof-exports"),
     )

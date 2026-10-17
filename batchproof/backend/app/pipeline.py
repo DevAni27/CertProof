@@ -6,8 +6,10 @@ import hashlib
 import io
 import json
 import re
+import shutil
 import threading
 from collections import defaultdict
+from pathlib import Path
 from typing import Optional
 
 import pypdfium2 as pdfium
@@ -18,7 +20,7 @@ from .schemas import ConfirmedMapping, Issue, Project, now_iso
 from .services.matching.source import mapped_values, source_issues
 from .services.rendering.glyphs import unsupported_chars
 from .services.rendering.html import PageData, RenderContext, expected_fixed_texts
-from .services.rendering.renderer import Cancelled, render_pdf
+from .services.rendering.renderer import Cancelled, chunk_count, render_pdf
 from .services.verification.common import (apply_acknowledgements, completion_state, make_issue, norm_cmp, status_for)
 from .services.verification.generated import verify_generated
 from .services.verification.pdf_extract import PdfProblem
@@ -246,7 +248,32 @@ def report_csv(report: dict) -> str:
     return buf.getvalue()
 
 
-def run_export(pid: str, ctx: JobCtx) -> dict:
+def checkpoint_path(pid: str, ih: str) -> Path:
+    """Finished chunks of an export live here, keyed by the export's content hash."""
+    return project_dir(pid) / "checkpoints" / ih[:16]
+
+
+def plan_export(pid: str) -> dict:
+    """What a durable workflow needs to know: how many chunks, and which version of the project they belong to.
+    Only ids and counts: no names ever go into a workflow."""
+    p = get_project(pid)
+    msgs = readiness(p)
+    if msgs:
+        raise JobFailure("Not ready to export", {"blocking": msgs})
+    intent = build_intent(p)
+    return {"intent_hash": intent_hash(intent), "chunks": chunk_count(_render_ctx(p, intent))}
+
+
+def render_export_chunk(pid: str, ih: str, ci: int) -> None:
+    p = get_project(pid)
+    intent = build_intent(p)
+    if intent_hash(intent) != ih:
+        raise JobFailure("The project changed while the export was running. Start it again.")
+    rctx = _render_ctx(p, intent)
+    render_pdf(rctx, project_assets(p), p.event.event_name or p.title, checkpoint_dir=checkpoint_path(pid, ih), only_chunks=[ci])
+
+
+def run_export(pid: str, ctx: JobCtx, checkpoint: bool = False) -> dict:
     s = get_settings()
     p = get_project(pid)
     msgs = readiness(p)
@@ -261,7 +288,8 @@ def run_export(pid: str, ctx: JobCtx) -> dict:
     issues += _glyph_issues(p, intent, rctx)
     total_chunks = max(1, -(-len(rctx.pages) // 25))
     ctx.progress(0, total_chunks + 2, "Rendering pages")
-    res = render_pdf(rctx, project_assets(p), p.event.event_name or p.title, cancel=ctx.cancel,
+    cp = checkpoint_path(pid, ih) if checkpoint else None
+    res = render_pdf(rctx, project_assets(p), p.event.event_name or p.title, cancel=ctx.cancel, checkpoint_dir=cp,
                      progress=lambda d, t: ctx.progress(d, t + 2, f"Rendered {min(d * 25, len(rctx.pages))} of {len(rctx.pages)} pages"))
     issues += _render_issues(res, intent)
     ctx.progress(total_chunks + 1, total_chunks + 2, "Checking the PDF")
@@ -316,5 +344,7 @@ def run_export(pid: str, ctx: JobCtx) -> dict:
                   (json.dumps({"mode": intent["mode"], "pdf": f"{base}.pdf", "report_json": "report.json",
                                "report_csv": "report.csv", "counts": report["counts"]}), aid))
     ctx.progress(total_chunks + 2, total_chunks + 2, "Done")
+    if cp is not None:
+        shutil.rmtree(cp, ignore_errors=True)       # chunk files hold names: remove them once the artifact is written
     return {"artifact_id": aid, "completion": completion, "pages": n, "counts": report["counts"],
             "filename": f"{base}.pdf", "intent_hash": ih}

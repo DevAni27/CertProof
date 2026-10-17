@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import glob
 import io
+import json
+import os
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,7 +47,12 @@ def render_pdf(
     doc_title: str,
     cancel: Optional[threading.Event] = None,
     progress: Optional[Callable[[int, int], None]] = None,
-) -> RenderResult:
+    checkpoint_dir: Optional[Path] = None,
+    only_chunks: Optional[list[int]] = None,
+) -> Optional[RenderResult]:
+    """Render to one PDF. With `checkpoint_dir`, every finished chunk is saved to disk and reused on a
+    later call, so an interrupted export resumes instead of starting again. With `only_chunks`, only
+    those chunks are rendered and saved (used by the durable workflow); nothing is returned."""
     import sys
     if sys.platform == "win32":
         # Playwright needs subprocess support, which only the Proactor loop has on Windows
@@ -65,19 +72,53 @@ def render_pdf(
     fits: list[dict] = []
     geom: list[dict] = []
     blocked: list[str] = []
-    offset = 0
-    with sync_playwright() as p:
-        browser = p.chromium.launch(executable_path=_chromium_exe())
-        try:
-            for ci, chunk in enumerate(chunks):
-                if cancel is not None and cancel.is_set():
-                    raise Cancelled()
+    if checkpoint_dir is not None:
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    def cached(ci: int):
+        if checkpoint_dir is None:
+            return None
+        meta, f = checkpoint_dir / f"chunk_{ci}.json", checkpoint_dir / f"chunk_{ci}.pdf"
+        if meta.is_file() and f.is_file():          # the json is written last, so it marks a finished chunk
+            try:
+                return f.read_bytes(), json.loads(meta.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return None
+        return None
+
+    def save(ci: int, pdf: bytes, info: dict):
+        if checkpoint_dir is None:
+            return
+        tmp = checkpoint_dir / f"chunk_{ci}.pdf.tmp"
+        tmp.write_bytes(pdf)
+        os.replace(tmp, checkpoint_dir / f"chunk_{ci}.pdf")
+        tmp = checkpoint_dir / f"chunk_{ci}.json.tmp"
+        tmp.write_text(json.dumps(info), encoding="utf-8")
+        os.replace(tmp, checkpoint_dir / f"chunk_{ci}.json")
+
+    pw = browser = None
+    try:
+        for ci, chunk in enumerate(chunks):
+            if only_chunks is not None and ci not in only_chunks:
+                continue
+            if cancel is not None and cancel.is_set():
+                raise Cancelled()
+            offset = ci * CHUNK
+            hit = cached(ci)
+            if hit is not None:
+                pdf, info = hit
+                cf, cg, cb = info["fits"], info["geom"], info["blocked"]
+            else:
+                if browser is None:
+                    pw = sync_playwright().start()
+                    browser = pw.chromium.launch(executable_path=_chromium_exe())
                 sub = RenderContext(ctx.spec, ctx.event, chunk, ctx.blank, ctx.asset_urls)
                 html = build_document(sub, doc_title).encode("utf-8")
                 bctx = browser.new_context(service_workers="block", accept_downloads=False)
                 page = bctx.new_page()
+                cb: list[str] = []
 
-                def handler(route, _request=None, html=html):
+                def handler(route, _request=None, html=html, cb=cb):
                     url = route.request.url
                     if url == f"{BASE}/doc.html":
                         route.fulfill(body=html, content_type="text/html; charset=utf-8")
@@ -87,7 +128,7 @@ def render_pdf(
                         path, mime = assets[url.rsplit("/", 1)[-1]]
                         route.fulfill(body=path.read_bytes(), content_type=mime)
                     else:
-                        blocked.append(url)
+                        cb.append(url)
                         route.abort()
 
                 page.route("**/*", handler)
@@ -102,20 +143,31 @@ def render_pdf(
                 for r in cg:
                     if r["page"]:
                         r["page"] += offset
-                fits += cf
-                geom += cg
                 pdf = page.pdf(width="297mm", height="210mm", print_background=True,
                                prefer_css_page_size=True, display_header_footer=False,
                                margin={"top": "0", "right": "0", "bottom": "0", "left": "0"})
                 bctx.close()
+                save(ci, pdf, {"fits": cf, "geom": cg, "blocked": cb})
+            if only_chunks is None:
+                fits += cf
+                geom += cg
+                blocked += cb
                 writer.append(PdfReader(io.BytesIO(pdf)))
-                offset += len(chunk)
-                if progress:
-                    progress(ci + 1, len(chunks))
-        finally:
+            if progress:
+                progress(ci + 1, len(chunks))
+    finally:
+        if browser is not None:
             browser.close()
+        if pw is not None:
+            pw.stop()
+    if only_chunks is not None:
+        return None
     writer.add_metadata({"/Title": doc_title, "/Producer": "CertProof", "/Creator": "CertProof"})
     buf = io.BytesIO()
     writer.write(buf)
     data = buf.getvalue()
     return RenderResult(data, len(PdfReader(io.BytesIO(data)).pages), fits, geom, blocked)
+
+
+def chunk_count(ctx: RenderContext) -> int:
+    return max(1, -(-len(ctx.pages) // CHUNK))

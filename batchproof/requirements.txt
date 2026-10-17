@@ -11,6 +11,8 @@ pypdfium2>=4.30
 pillow>=10.4
 fonttools>=4.50
 playwright>=1.48
+# optional: durable exports (see README, "Durable exports")
+temporalio>=1.7
 # tests / fixtures only
 pytest>=8.0
 reportlab>=4.0
