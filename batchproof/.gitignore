@@ -1,0 +1,8 @@
+.venv/
+data/
+node_modules/
+__pycache__/
+.pytest_cache/
+.env
+*.pyc
+tests/_tmp_*.pdf

@@ -1,0 +1,31 @@
+{
+  "report_version": 1,
+  "generated_at": "2026-10-15T13:46:26+00:00",
+  "project_id": "9b2e6fc6632f41f8",
+  "mode": "blank_name",
+  "intent_hash": "db3c8113c37e2c6744d66d219cebdcdfe5f8ce48296dbd355dd19ba8c979ee3d",
+  "pdf_sha256": "a6f382938345d3dd9807944a37a8576d5280650684f49d88ab61a99919f14a88",
+  "pdf_pages": 1,
+  "completion": "checked",
+  "recipient_matching": "not_applicable",
+  "summary": {
+    "pdf_pages": 1,
+    "expected_pages": 1,
+    "mode": "blank_name",
+    "recipient_matching": "not_applicable"
+  },
+  "counts": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "issues": [],
+  "page_statuses": [
+    {
+      "page": 1,
+      "status": "Checked",
+      "row_id": null
+    }
+  ],
+  "manifest": null,
+  "meaning_of_checked": "'Checked' means the implemented checks passed against the confirmed inputs. It does not certify identity, event truth, authorisation, the spelling supplied by the organiser, or legal validity."
+}

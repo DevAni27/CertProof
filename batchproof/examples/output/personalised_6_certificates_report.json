@@ -1,0 +1,105 @@
+{
+  "report_version": 1,
+  "generated_at": "2026-10-15T13:46:22+00:00",
+  "project_id": "9b2e6fc6632f41f8",
+  "mode": "personalised",
+  "intent_hash": "75c86b0cfb6376ced2e873b06ab421bf7a494646dcb4a43e0b9170ca51d008ea",
+  "pdf_sha256": "80b7f4346d56a1f41ca9fa025e50d71fc86d778f24f53885192bd081ee83215e",
+  "pdf_pages": 6,
+  "completion": "checked",
+  "recipient_matching": "checked_against_export_manifest",
+  "summary": {
+    "pdf_pages": 6,
+    "expected_pages": 6,
+    "mode": "personalised",
+    "recipient_matching": "checked_against_export_manifest"
+  },
+  "counts": {
+    "errors": 0,
+    "warnings": 1
+  },
+  "issues": [
+    {
+      "id": "9991b37d18f5",
+      "code": "NAME_FONT_ADJUSTED",
+      "severity": "warning",
+      "page": 5,
+      "row_id": "r5",
+      "source_row_index": 6,
+      "field": "name",
+      "expected": "Alexandria Konstantinopoulos-Montgomery",
+      "actual": null,
+      "rect": null,
+      "message": "Page 5: name shrunk to 24.0 pt to fit.",
+      "next_action": "The name was shrunk to fit. Acknowledge if the size is acceptable.",
+      "candidates": [],
+      "acknowledged": true,
+      "ack_note": "Reviewed page 5 by eye when producing this example; 24 pt is legible."
+    }
+  ],
+  "page_statuses": [
+    {
+      "page": 1,
+      "status": "Checked",
+      "row_id": "r1"
+    },
+    {
+      "page": 2,
+      "status": "Checked",
+      "row_id": "r2"
+    },
+    {
+      "page": 3,
+      "status": "Checked",
+      "row_id": "r3"
+    },
+    {
+      "page": 4,
+      "status": "Checked",
+      "row_id": "r4"
+    },
+    {
+      "page": 5,
+      "status": "Needs review",
+      "row_id": "r5"
+    },
+    {
+      "page": 6,
+      "status": "Checked",
+      "row_id": "r6"
+    }
+  ],
+  "manifest": [
+    {
+      "page": 1,
+      "row_id": "r1",
+      "source_row_index": 2
+    },
+    {
+      "page": 2,
+      "row_id": "r2",
+      "source_row_index": 3
+    },
+    {
+      "page": 3,
+      "row_id": "r3",
+      "source_row_index": 4
+    },
+    {
+      "page": 4,
+      "row_id": "r4",
+      "source_row_index": 5
+    },
+    {
+      "page": 5,
+      "row_id": "r5",
+      "source_row_index": 6
+    },
+    {
+      "page": 6,
+      "row_id": "r6",
+      "source_row_index": 7
+    }
+  ],
+  "meaning_of_checked": "'Checked' means the implemented checks passed against the confirmed inputs. It does not certify identity, event truth, authorisation, the spelling supplied by the organiser, or legal validity."
+}
